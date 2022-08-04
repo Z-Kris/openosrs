@@ -33,7 +33,6 @@ import com.google.inject.Injector;
 import com.openosrs.client.OpenOSRS;
 import com.openosrs.client.game.PlayerManager;
 import com.openosrs.client.ui.OpenOSRSSplashScreen;
-import com.thatgamerblue.snake.SnakeGame;
 import java.applet.Applet;
 import java.io.File;
 import java.io.IOException;
@@ -49,7 +48,6 @@ import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -61,7 +59,6 @@ import javax.inject.Singleton;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
-import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionParser;
@@ -73,7 +70,6 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.Constants;
-import net.runelite.client.account.SessionManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.discord.DiscordService;
 import net.runelite.client.eventbus.EventBus;
@@ -91,14 +87,12 @@ import net.runelite.client.ui.overlay.WidgetOverlay;
 import net.runelite.client.ui.overlay.tooltip.TooltipOverlay;
 import net.runelite.client.ui.overlay.worldmap.WorldMapOverlay;
 import net.runelite.client.util.WorldUtil;
-import net.runelite.http.api.RuneLiteAPI;
 import net.runelite.http.api.worlds.World;
 import net.runelite.http.api.worlds.WorldResult;
 import okhttp3.Cache;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
-import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.LoggerFactory;
 
 @Singleton
@@ -135,9 +129,6 @@ public class RuneLite
 
 	@Inject
 	private ConfigManager configManager;
-
-	@Inject
-	private SessionManager sessionManager;
 
 	@Inject
 	private DiscordService discordService;
@@ -178,15 +169,8 @@ public class RuneLite
 	@Nullable
 	private RuntimeConfig runtimeConfig;
 
-	private static final String BYPASS_ARG = "--IWillNotComplainIfIGetSentToTheGulagByJamflex";
-
-	public static void main(String[] args) throws Exception {
-		SnakeGame.main(args);
-	}
-
-	public static void oldMain(String[] args) throws Exception
+	public static void main(String[] args) throws Exception
 	{
-		args = Arrays.stream(args).filter(s -> !BYPASS_ARG.equals(s)).toArray(String[]::new);
 		Locale.setDefault(Locale.ENGLISH);
 
 		final OptionParser parser = new OptionParser(false);
@@ -293,7 +277,6 @@ public class RuneLite
 		OpenOSRS.preload();
 
 		final OkHttpClient okHttpClient = buildHttpClient(options.has("insecure-skip-tls-verification"));
-		RuneLiteAPI.CLIENT = okHttpClient;
 
 		SplashScreen.init();
 		OpenOSRSSplashScreen.init();
@@ -390,9 +373,6 @@ public class RuneLite
 
 		// Load user configuration
 		configManager.load();
-
-		// Load the session, including saved configuration
-		sessionManager.loadSession();
 
 		// Tell the plugin manager if client is outdated or not
 		pluginManager.setOutdated(isOutdated);
@@ -557,6 +537,22 @@ public class RuneLite
 			.addInterceptor(chain ->
 			{
 				Request request = chain.request();
+
+				if (request.url().host().endsWith("runescape.com"))
+				{
+					return chain.proceed(request);
+				}
+
+				if (request.url().host().endsWith("openosrs.dev"))
+				{
+					Request userAgentRequest = request
+						.newBuilder()
+						.header("User-Agent", "OpenOSRS/" + OpenOSRS.SYSTEM_VERSION)
+						.build();
+
+					return chain.proceed(userAgentRequest);
+				}
+
 				if (request.header("User-Agent") != null)
 				{
 					return chain.proceed(request);
@@ -566,6 +562,7 @@ public class RuneLite
 					.newBuilder()
 					.header("User-Agent", USER_AGENT)
 					.build();
+
 				return chain.proceed(userAgentRequest);
 			})
 			// Setup cache

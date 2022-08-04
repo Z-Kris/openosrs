@@ -34,6 +34,8 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import net.runelite.api.annotations.VarCInt;
+import net.runelite.api.annotations.VarCStr;
 import net.runelite.api.annotations.Varbit;
 import net.runelite.api.annotations.VisibleForDevtools;
 import net.runelite.api.annotations.VisibleForExternalPlugins;
@@ -711,7 +713,7 @@ public interface Client extends OAuthApi, GameEngine
 	 * Create a new menu entry
 	 * @return the newly created menu entry
 	 */
-	MenuEntry createMenuEntry(String option, String target, int identifier, int opcode, int param1, int param2, boolean forceLeftClick);
+	MenuEntry createMenuEntry(String option, String target, int identifier, int opcode, int param1, int param2, int itemId, boolean forceLeftClick);
 
 	/**
 	 * Gets an array of currently open right-click menu entries that can be
@@ -918,22 +920,6 @@ public interface Client extends OAuthApi, GameEngine
 	int getServerVarbitValue(@Varbit int varbit);
 
 	/**
-	 * Gets an int value corresponding to the passed variable.
-	 *
-	 * @param varClientInt the variable
-	 * @return the value
-	 */
-	int getVar(VarClientInt varClientInt);
-
-	/**
-	 * Gets a String value corresponding to the passed variable.
-	 *
-	 * @param varClientStr the variable
-	 * @return the value
-	 */
-	String getVar(VarClientStr varClientStr);
-
-	/**
 	 * Gets the value of a given VarPlayer.
 	 *
 	 * @param varpId the VarPlayer id
@@ -957,30 +943,34 @@ public interface Client extends OAuthApi, GameEngine
 	/**
 	 * Gets the value of a given VarClientInt
 	 *
-	 * @param varcIntId the VarClientInt id
+	 * @param var the {@link VarClientInt}
 	 * @return the value
 	 */
-	@VisibleForExternalPlugins
-	int getVarcIntValue(int varcIntId);
+	int getVarcIntValue(@VarCInt int var);
 
 	/**
 	 * Gets the value of a given VarClientStr
 	 *
-	 * @param varcStrId the VarClientStr id
+	 * @param var the {@link VarClientStr}
 	 * @return the value
 	 */
-	@VisibleForExternalPlugins
-	String getVarcStrValue(int varcStrId);
+	String getVarcStrValue(@VarCStr int var);
 
 	/**
 	 * Sets a VarClientString to the passed value
+	 *
+	 * @param var the {@link VarClientStr}
+	 * @param value the new value
 	 */
-	void setVar(VarClientStr varClientStr, String value);
+	void setVarcStrValue(@VarCStr int var, String value);
 
 	/**
 	 * Sets a VarClientInt to the passed value
+	 *
+	 * @param var the {@link VarClientInt}
+	 * @param value the new value
 	 */
-	void setVar(VarClientInt varClientStr, int value);
+	void setVarcIntValue(@VarCInt int var, int value);
 
 	/**
 	 * Sets the value of a varbit
@@ -1127,6 +1117,11 @@ public interface Client extends OAuthApi, GameEngine
 	 * Gets the client's cache of in memory struct compositions
 	 */
 	NodeCache getStructCompositionCache();
+
+	/**
+	 * Gets a entry out of a DBTable Row
+	 */
+	Object getDBTableField(int rowID, int column, int tupleIndex, int fieldIndex);
 
 	/**
 	 * Gets an array of all world areas
@@ -2064,8 +2059,14 @@ public interface Client extends OAuthApi, GameEngine
 
 	void setRenderSelf(boolean enabled);
 
-	void invokeMenuAction(String option, String target, int identifier, int opcode, int param0, int param1);
 
+	default void invokeMenuAction(String option, String target, int identifier, int opcode, int param0, int param1)
+	{
+		invokeMenuAction(option, target, identifier, opcode, param0, param1, -1, -1, -1);
+	}
+
+	void invokeMenuAction(String option, String target, int identifier, int opcode, int param0, int param1,
+						  int itemId, int screenX, int screenY);
 	MouseRecorder getMouseRecorder();
 
 	void setPrintMenuActions(boolean b);
@@ -2148,7 +2149,7 @@ public interface Client extends OAuthApi, GameEngine
 	/**
 	 * Adds a MenuEntry to the current menu.
 	 */
-	void insertMenuItem(String action, String target, int opcode, int identifier, int argument1, int argument2, boolean forceLeftClick);
+	void insertMenuItem(String action, String target, int opcode, int identifier, int argument1, int argument2, int itemId, boolean forceLeftClick);
 
 	/**
 	 * @deprecated use {@link #setSelectedSpellItemId(int)} instead.
@@ -2428,4 +2429,7 @@ public interface Client extends OAuthApi, GameEngine
 	 * @return
 	 */
 	Deque<AmbientSoundEffect> getAmbientSoundEffects();
+	MenuEntry createMenuEntry(String option, String target, int identifier, int opcode, int param1, int param2, boolean forceLeftClick);
+
+	void insertMenuItem(String action, String target, int opcode, int identifier, int argument1, int argument2, boolean forceLeftClick);
 }

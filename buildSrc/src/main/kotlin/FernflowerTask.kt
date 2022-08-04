@@ -39,7 +39,6 @@ open class FernflowerTask: DefaultTask() {
         if (extraArgs != null) {
             args.addAll(extraArgs!!)
         }
-
         ConsoleDecompiler.main(args.toTypedArray())
     }
 }

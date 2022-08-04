@@ -1,151 +1,174 @@
-import java.security.Principal;
 import java.security.cert.Certificate;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSessionContext;
-import javax.security.cert.X509Certificate;
-import net.runelite.mapping.Export;
-import net.runelite.mapping.ObfuscatedGetter;
 import net.runelite.mapping.ObfuscatedName;
 import net.runelite.mapping.ObfuscatedSignature;
-
-@ObfuscatedName("x")
+import javax.net.ssl.SSLPeerUnverifiedException;
+import javax.net.ssl.SSLSessionContext;
+import javax.net.ssl.SSLSession;
+import javax.security.cert.X509Certificate;
+import java.security.Principal;
+import net.runelite.mapping.Export;
+@ObfuscatedName("y")
 class class17 implements SSLSession {
-	@ObfuscatedName("x")
-	@Export("ByteArrayPool_altSizeArrayCounts")
-	public static int[] ByteArrayPool_altSizeArrayCounts;
-	@ObfuscatedName("bt")
-	@ObfuscatedGetter(
-		intValue = 1069442965
-	)
-	static int field99;
-	// $FF: synthetic field
-	@ObfuscatedSignature(
-		descriptor = "Lz;"
-	)
+	@ObfuscatedName("rj")
+	@ObfuscatedSignature(descriptor = "Ley;")
+	@Export("guestClanChannel")
+	static ClanChannel guestClanChannel;
+
+	@ObfuscatedSignature(descriptor = "Lx;")
 	final class12 this$1;
 
-	@ObfuscatedSignature(
-		descriptor = "(Lz;)V"
-	)
+	@ObfuscatedSignature(descriptor = "(Lx;)V")
 	class17(class12 var1) {
-		this.this$1 = var1; // L: 134
-	}
-
-	public int getApplicationBufferSize() {
-		return 0; // L: 137
-	}
-
-	public Principal getPeerPrincipal() throws SSLPeerUnverifiedException {
-		return null; // L: 197
-	}
-
-	public byte[] getId() {
-		throw new UnsupportedOperationException(); // L: 152
-	}
-
-	public long getLastAccessedTime() {
-		throw new UnsupportedOperationException(); // L: 157
-	}
-
-	public Certificate[] getLocalCertificates() {
-		throw new UnsupportedOperationException(); // L: 162
-	}
-
-	public int getPacketBufferSize() {
-		throw new UnsupportedOperationException(); // L: 172
-	}
-
-	public Certificate[] getPeerCertificates() throws SSLPeerUnverifiedException {
-		return this.this$1.field63; // L: 182
-	}
-
-	public String getPeerHost() {
-		throw new UnsupportedOperationException(); // L: 187
-	}
-
-	public int getPeerPort() {
-		return 0; // L: 192
-	}
-
-	public String getProtocol() {
-		throw new UnsupportedOperationException(); // L: 202
-	}
-
-	public Object getValue(String var1) {
-		throw new UnsupportedOperationException(); // L: 212
-	}
-
-	public void invalidate() {
-		throw new UnsupportedOperationException(); // L: 222
-	}
-
-	public boolean isValid() {
-		throw new UnsupportedOperationException(); // L: 227
-	}
-
-	public void putValue(String var1, Object var2) {
-		throw new UnsupportedOperationException(); // L: 232
-	}
-
-	public X509Certificate[] getPeerCertificateChain() throws SSLPeerUnverifiedException {
-		return null; // L: 177
-	}
-
-	public SSLSessionContext getSessionContext() {
-		throw new UnsupportedOperationException(); // L: 207
+		this.this$1 = var1;
 	}
 
 	public long getCreationTime() {
-		throw new UnsupportedOperationException(); // L: 147
+		throw new UnsupportedOperationException();
 	}
 
-	public void removeValue(String var1) {
-		throw new UnsupportedOperationException(); // L: 237
+	public int getApplicationBufferSize() {
+		return 0;
+	}
+
+	public Principal getPeerPrincipal() throws SSLPeerUnverifiedException {
+		return null;
+	}
+
+	public long getLastAccessedTime() {
+		throw new UnsupportedOperationException();
+	}
+
+	public Certificate[] getLocalCertificates() {
+		throw new UnsupportedOperationException();
 	}
 
 	public Principal getLocalPrincipal() {
-		throw new UnsupportedOperationException(); // L: 167
+		throw new UnsupportedOperationException();
 	}
 
-	public String[] getValueNames() {
-		throw new UnsupportedOperationException(); // L: 217
+	public Certificate[] getPeerCertificates() throws SSLPeerUnverifiedException {
+		return this.this$1.field64;
+	}
+
+	public X509Certificate[] getPeerCertificateChain() throws SSLPeerUnverifiedException {
+		return null;
 	}
 
 	public String getCipherSuite() {
-		throw new UnsupportedOperationException(); // L: 142
+		throw new UnsupportedOperationException();
+	}
+
+	public String getPeerHost() {
+		throw new UnsupportedOperationException();
+	}
+
+	public String getProtocol() {
+		throw new UnsupportedOperationException();
+	}
+
+	public byte[] getId() {
+		throw new UnsupportedOperationException();
+	}
+
+	public SSLSessionContext getSessionContext() {
+		throw new UnsupportedOperationException();
+	}
+
+	public Object getValue(String var1) {
+		throw new UnsupportedOperationException();
+	}
+
+	public String[] getValueNames() {
+		throw new UnsupportedOperationException();
+	}
+
+	public boolean isValid() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void putValue(String var1, Object var2) {
+		throw new UnsupportedOperationException();
+	}
+
+	public void removeValue(String var1) {
+		throw new UnsupportedOperationException();
+	}
+
+	public int getPacketBufferSize() {
+		throw new UnsupportedOperationException();
+	}
+
+	public void invalidate() {
+		throw new UnsupportedOperationException();
+	}
+
+	public int getPeerPort() {
+		return 0;
+	}
+
+	@ObfuscatedName("o")
+	@ObfuscatedSignature(descriptor = "(Lci;I)V", garbageValue = "193482070")
+	@Export("runScriptEvent")
+	public static void runScriptEvent(ScriptEvent var0) {
+		class228.runScript(var0, 500000, 475000);
 	}
 
 	@ObfuscatedName("f")
-	@ObfuscatedSignature(
-		descriptor = "(IIII)I",
-		garbageValue = "1793849187"
-	)
-	public static int method232(int var0, int var1, int var2) {
-		int var3 = VarpDefinition.method3374(var2 - var1 + 1); // L: 43
-		var3 <<= var1; // L: 44
-		var0 |= var3; // L: 45
-		return var0; // L: 46
+	@ObfuscatedSignature(descriptor = "(II)[B", garbageValue = "-462685190")
+	@Export("ByteArrayPool_getArray")
+	public static synchronized byte[] ByteArrayPool_getArray(int var0) {
+		return ByteArrayPool.ByteArrayPool_getArrayBool(var0, false);
 	}
 
-	@ObfuscatedName("kt")
-	@ObfuscatedSignature(
-		descriptor = "(IB)V",
-		garbageValue = "113"
-	)
-	@Export("Widget_resetModelFrames")
-	static final void Widget_resetModelFrames(int var0) {
-		if (WorldMapSection2.loadInterface(var0)) { // L: 11760
-			Widget[] var1 = SoundCache.Widget_interfaceComponents[var0]; // L: 11761
+	@ObfuscatedName("w")
+	@ObfuscatedSignature(descriptor = "(I)V", garbageValue = "-314282579")
+	static void method262() {
+		Messages.Messages_channels.clear();
+		Messages.Messages_hashTable.clear();
+		Messages.Messages_queue.clear();
+		Messages.Messages_count = 0;
+	}
 
-			for (int var2 = 0; var2 < var1.length; ++var2) { // L: 11762
-				Widget var3 = var1[var2]; // L: 11763
-				if (var3 != null) { // L: 11764
-					var3.modelFrame = 0; // L: 11765
-					var3.modelFrameCycle = 0; // L: 11766
-				}
-			}
+	@ObfuscatedName("w")
+	public static int method263(long var0) {
+		return ((int) (var0 >>> 7 & 127L));
+	}
 
+	@ObfuscatedName("jf")
+	@ObfuscatedSignature(descriptor = "(Lku;IIIIIII)V", garbageValue = "-1374373276")
+	static final void method261(Widget var0, int var1, int var2, int var3, int var4, int var5, int var6) {
+		if (Client.field562) {
+			Client.alternativeScrollbarWidth = 32;
+		} else {
+			Client.alternativeScrollbarWidth = 0;
 		}
-	} // L: 11768
+		Client.field562 = false;
+		int var7;
+		if (MouseHandler.MouseHandler_currentButton == 1 || !ObjectSound.mouseCam && MouseHandler.MouseHandler_currentButton == 4) {
+			if (var5 >= var1 && var5 < var1 + 16 && var6 >= var2 && var6 < var2 + 16) {
+				var0.scrollY -= 4;
+				class220.invalidateWidget(var0);
+			} else if (var5 >= var1 && var5 < var1 + 16 && var6 >= var3 + var2 - 16 && var6 < var3 + var2) {
+				var0.scrollY += 4;
+				class220.invalidateWidget(var0);
+			} else if (var5 >= var1 - Client.alternativeScrollbarWidth && var5 < Client.alternativeScrollbarWidth + var1 + 16 && var6 >= var2 + 16 && var6 < var3 + var2 - 16) {
+				var7 = var3 * (var3 - 32) / var4;
+				if (var7 < 8) {
+					var7 = 8;
+				}
+				int var8 = var6 - var2 - 16 - var7 / 2;
+				int var9 = var3 - 32 - var7;
+				var0.scrollY = var8 * (var4 - var3) / var9;
+				class220.invalidateWidget(var0);
+				Client.field562 = true;
+			}
+		}
+		if (Client.mouseWheelRotation != 0) {
+			var7 = var0.width;
+			if (var5 >= var1 - var7 && var6 >= var2 && var5 < var1 + 16 && var6 <= var3 + var2) {
+				var0.scrollY += Client.mouseWheelRotation * 45;
+				class220.invalidateWidget(var0);
+			}
+		}
+	}
 }

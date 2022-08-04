@@ -10,9 +10,9 @@ class FernflowerPlugin : Plugin<Project> {
             dependsOn(project.tasks.getByName("jar"))
 
             doFirst {
-                if (!project.tasks.getByName("jar").didWork) {
+                /*if (!project.tasks.getByName("jar").didWork) {
                     throw StopExecutionException()
-                }
+                }*/
             }
         }
     }

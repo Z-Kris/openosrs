@@ -104,6 +104,11 @@ tasks {
 
         classpath = project.sourceSets.main.get().runtimeClasspath
         mainClass.set("net.runelite.deob.updater.UpdateMappings")
+        args = listOf(
+            "$buildDir/libs/runescape-client-4.31.2.jar",
+            "$buildDir/libs/deobfuscated-4.31.2.jar",
+            "$buildDir/libs/injected-mapped.jar"
+        )
     }
 }
 

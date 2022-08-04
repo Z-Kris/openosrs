@@ -27,6 +27,8 @@ package net.runelite.deob;
 import com.google.common.base.Stopwatch;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
+
 import net.runelite.asm.ClassGroup;
 import net.runelite.asm.execution.Execution;
 import net.runelite.deob.deobfuscators.CastNull;
@@ -77,7 +79,9 @@ public class Deob
 
 		Stopwatch stopwatch = Stopwatch.createStarted();
 
-		ClassGroup group = JarUtil.load(new File(args[0]), true);
+		ClassGroup group = JarUtil.load(new File(
+				Paths.get(System.getProperty("user.home"), "gamepack") + File.separator + "gamepack.jar"
+		), true);
 
 		// remove except RuntimeException
 		run(group, new RuntimeExceptions());

@@ -1,11 +1,9 @@
 package net.runelite.mixins;
 
-import net.runelite.api.VarClientInt;
-import net.runelite.api.VarClientStr;
-import net.runelite.api.VarbitComposition;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import java.util.Map;
+import net.runelite.api.VarbitComposition;
 import net.runelite.api.mixins.Inject;
 import net.runelite.api.mixins.Mixin;
 import net.runelite.api.mixins.Shadow;
@@ -22,8 +20,8 @@ public abstract class VarbitMixin implements RSClient
 
 	@Inject
 	private Cache<Integer, RSVarbitComposition> varbitCache = CacheBuilder.newBuilder()
-		.maximumSize(128)
-		.build();
+			.maximumSize(128)
+			.build();
 
 	@Inject
 	VarbitMixin()
@@ -107,13 +105,6 @@ public abstract class VarbitMixin implements RSClient
 
 	@Inject
 	@Override
-	public int getVar(VarClientInt varClientInt)
-	{
-		return getVarcIntValue(varClientInt.getIndex());
-	}
-
-	@Inject
-	@Override
 	public int getVarcIntValue(int varcIntId)
 	{
 		Map<Integer, Object> varcmap = getVarcMap();
@@ -123,9 +114,10 @@ public abstract class VarbitMixin implements RSClient
 
 	@Inject
 	@Override
-	public String getVar(VarClientStr varClientStr)
+	public void setVarcIntValue(int varc, int value)
 	{
-		return getVarcStrValue(varClientStr.getIndex());
+		Map<Integer, Object> varcmap = getVarcMap();
+		varcmap.put(varc, value);
 	}
 
 	@Inject
@@ -139,18 +131,10 @@ public abstract class VarbitMixin implements RSClient
 
 	@Inject
 	@Override
-	public void setVar(VarClientStr varClientStr, String value)
+	public void setVarcStrValue(int varc, String value)
 	{
 		Map<Integer, Object> varcmap = getVarcMap();
-		varcmap.put(varClientStr.getIndex(), value);
-	}
-
-	@Inject
-	@Override
-	public void setVar(VarClientInt varClientInt, int value)
-	{
-		Map<Integer, Object> varcmap = getVarcMap();
-		varcmap.put(varClientInt.getIndex(), value);
+		varcmap.put(varc, value);
 	}
 
 	@Inject

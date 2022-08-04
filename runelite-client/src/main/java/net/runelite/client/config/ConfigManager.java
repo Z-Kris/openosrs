@@ -62,7 +62,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -75,8 +74,6 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
@@ -92,8 +89,6 @@ import net.runelite.api.events.AccountHashChanged;
 import net.runelite.api.events.PlayerChanged;
 import net.runelite.api.events.UsernameChanged;
 import net.runelite.api.events.WorldChanged;
-import net.runelite.client.RuneLite;
-import net.runelite.client.account.AccountSession;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ClientShutdown;
@@ -102,9 +97,6 @@ import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.plugins.OPRSExternalPluginManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.util.ColorUtil;
-import net.runelite.http.api.config.ConfigEntry;
-import net.runelite.http.api.config.Configuration;
-import okhttp3.OkHttpClient;
 
 @Singleton
 @Slf4j
@@ -126,11 +118,8 @@ public class ConfigManager
 
 	private final File settingsFileInput;
 	private final EventBus eventBus;
-	private final OkHttpClient okHttpClient;
 	private final Gson gson;
 
-	private AccountSession session;
-	private ConfigClient configClient;
 	private File propertiesFile;
 
 	@Nullable
@@ -148,43 +137,21 @@ public class ConfigManager
 
 	@Inject
 	public ConfigManager(
-			@Named("config") File config,
-			ScheduledExecutorService scheduledExecutorService,
-			EventBus eventBus,
-			OkHttpClient okHttpClient,
-			@Nullable Client client,
-			Gson gson)
+		@Named("config") File config,
+		EventBus eventBus,
+		@Nullable Client client,
+		Gson gson)
 	{
 		this.settingsFileInput = config;
 		this.eventBus = eventBus;
-		this.okHttpClient = okHttpClient;
 		this.client = client;
 		this.propertiesFile = getPropertiesFile();
 		this.gson = gson;
-
-		scheduledExecutorService.scheduleWithFixedDelay(this::sendConfig, 30, 5 * 60, TimeUnit.SECONDS);
 	}
 
 	public String getRSProfileKey()
 	{
 		return rsProfileKey;
-	}
-
-	public final void switchSession(AccountSession session)
-	{
-		if (session == null)
-		{
-			this.session = null;
-			this.configClient = null;
-		}
-		else
-		{
-			this.session = session;
-		}
-
-		this.propertiesFile = getPropertiesFile();
-
-		load(); // load profile specific config
 	}
 
 	private File getLocalPropertiesFile()
@@ -194,16 +161,7 @@ public class ConfigManager
 
 	private File getPropertiesFile()
 	{
-		// Sessions that aren't logged in have no username
-		if (session == null || session.getUsername() == null)
-		{
-			return getLocalPropertiesFile();
-		}
-		else
-		{
-			File profileDir = new File(RuneLite.PROFILES_DIR, session.getUsername().toLowerCase());
-			return new File(profileDir, RuneLite.DEFAULT_CONFIG_FILE.getName());
-		}
+		return getLocalPropertiesFile();
 	}
 
 	public void load()
@@ -283,31 +241,6 @@ public class ConfigManager
 		swapProperties(properties, true);
 	}
 
-	public Future<Void> importLocal()
-	{
-		if (session == null)
-		{
-			// No session, no import
-			return null;
-		}
-
-		final File file = new File(propertiesFile.getParent(), propertiesFile.getName() + "." + TIME_FORMAT.format(new Date()));
-
-		try
-		{
-			saveToFile(file);
-		}
-		catch (IOException e)
-		{
-			log.warn("Backup failed, skipping import", e);
-			return null;
-		}
-
-		syncPropertiesFromFile(getLocalPropertiesFile());
-
-		return sendConfig();
-	}
-
 	private synchronized void loadFromFile()
 	{
 		consumers.clear();
@@ -367,9 +300,9 @@ public class ConfigManager
 		}
 
 		T t = (T) Proxy.newProxyInstance(clazz.getClassLoader(), new Class<?>[]
-				{
-						clazz
-				}, handler);
+			{
+				clazz
+			}, handler);
 
 		return t;
 	}
@@ -621,67 +554,67 @@ public class ConfigManager
 		}
 
 		final List<ConfigSectionDescriptor> sections = getAllDeclaredInterfaceFields(inter).stream()
-				.filter(m -> m.isAnnotationPresent(ConfigSection.class) && m.getType() == String.class)
-				.map(m ->
+			.filter(m -> m.isAnnotationPresent(ConfigSection.class) && m.getType() == String.class)
+			.map(m ->
+			{
+				try
 				{
-					try
-					{
-						return new ConfigSectionDescriptor(
-								String.valueOf(m.get(inter)),
-								m.getDeclaredAnnotation(ConfigSection.class)
-						);
-					}
-					catch (IllegalAccessException e)
-					{
-						log.warn("Unable to load section {}::{}", inter.getSimpleName(), m.getName());
-						return null;
-					}
-				})
-				.filter(Objects::nonNull)
-				.sorted((a, b) -> ComparisonChain.start()
-						.compare(a.getSection().position(), b.getSection().position())
-						.compare(a.getSection().name(), b.getSection().name())
-						.result())
-				.collect(Collectors.toList());
+					return new ConfigSectionDescriptor(
+						String.valueOf(m.get(inter)),
+						m.getDeclaredAnnotation(ConfigSection.class)
+					);
+				}
+				catch (IllegalAccessException e)
+				{
+					log.warn("Unable to load section {}::{}", inter.getSimpleName(), m.getName());
+					return null;
+				}
+			})
+			.filter(Objects::nonNull)
+			.sorted((a, b) -> ComparisonChain.start()
+				.compare(a.getSection().position(), b.getSection().position())
+				.compare(a.getSection().name(), b.getSection().name())
+				.result())
+			.collect(Collectors.toList());
 
 		final List<ConfigTitleDescriptor> titles = getAllDeclaredInterfaceFields(inter).stream()
-				.filter(m -> m.isAnnotationPresent(ConfigTitle.class) && m.getType() == String.class)
-				.map(m ->
+			.filter(m -> m.isAnnotationPresent(ConfigTitle.class) && m.getType() == String.class)
+			.map(m ->
+			{
+				try
 				{
-					try
-					{
-						return new ConfigTitleDescriptor(
-								String.valueOf(m.get(inter)),
-								m.getDeclaredAnnotation(ConfigTitle.class)
-						);
-					}
-					catch (IllegalAccessException e)
-					{
-						log.warn("Unable to load title {}::{}", inter.getSimpleName(), m.getName());
-						return null;
-					}
-				})
-				.filter(Objects::nonNull)
-				.sorted((a, b) -> ComparisonChain.start()
-						.compare(a.getTitle().position(), b.getTitle().position())
-						.compare(a.getTitle().name(), b.getTitle().name())
-						.result())
-				.collect(Collectors.toList());
+					return new ConfigTitleDescriptor(
+						String.valueOf(m.get(inter)),
+						m.getDeclaredAnnotation(ConfigTitle.class)
+					);
+				}
+				catch (IllegalAccessException e)
+				{
+					log.warn("Unable to load title {}::{}", inter.getSimpleName(), m.getName());
+					return null;
+				}
+			})
+			.filter(Objects::nonNull)
+			.sorted((a, b) -> ComparisonChain.start()
+				.compare(a.getTitle().position(), b.getTitle().position())
+				.compare(a.getTitle().name(), b.getTitle().name())
+				.result())
+			.collect(Collectors.toList());
 
 		final List<ConfigItemDescriptor> items = Arrays.stream(inter.getMethods())
-				.filter(m -> m.getParameterCount() == 0 && m.isAnnotationPresent(ConfigItem.class))
-				.map(m -> new ConfigItemDescriptor(
-						m.getDeclaredAnnotation(ConfigItem.class),
-						m.getGenericReturnType(),
-						m.getDeclaredAnnotation(Range.class),
-						m.getDeclaredAnnotation(Alpha.class),
-						m.getDeclaredAnnotation(Units.class)
-				))
-				.sorted((a, b) -> ComparisonChain.start()
-						.compare(a.getItem().position(), b.getItem().position())
-						.compare(a.getItem().name(), b.getItem().name())
-						.result())
-				.collect(Collectors.toList());
+			.filter(m -> m.getParameterCount() == 0 && m.isAnnotationPresent(ConfigItem.class))
+			.map(m -> new ConfigItemDescriptor(
+				m.getDeclaredAnnotation(ConfigItem.class),
+				m.getGenericReturnType(),
+				m.getDeclaredAnnotation(Range.class),
+				m.getDeclaredAnnotation(Alpha.class),
+				m.getDeclaredAnnotation(Units.class)
+			))
+			.sorted((a, b) -> ComparisonChain.start()
+				.compare(a.getItem().position(), b.getItem().position())
+				.compare(a.getItem().name(), b.getItem().name())
+				.result())
+			.collect(Collectors.toList());
 
 		return new ConfigDescriptor(group, sections, titles, items);
 	}
@@ -1016,7 +949,7 @@ public class ConfigManager
 	)
 	private void onClientShutdown(ClientShutdown e)
 	{
-		Future<Void> f = sendConfig();
+		Future<Void> f = saveConfig();
 		if (f != null)
 		{
 			e.waitFor(f);
@@ -1077,27 +1010,9 @@ public class ConfigManager
 	}
 
 	@Nullable
-	private CompletableFuture<Void> sendConfig()
+	private CompletableFuture<Void> saveConfig()
 	{
 		CompletableFuture<Void> future = null;
-		synchronized (pendingChanges)
-		{
-			if (pendingChanges.isEmpty())
-			{
-				return null;
-			}
-
-			if (configClient != null)
-			{
-				Configuration patch = new Configuration(pendingChanges.entrySet().stream()
-						.map(e -> new ConfigEntry(e.getKey(), e.getValue()))
-						.collect(Collectors.toList()));
-
-				future = configClient.patch(patch);
-			}
-
-			pendingChanges.clear();
-		}
 
 		try
 		{
@@ -1133,20 +1048,20 @@ public class ConfigManager
 		}
 
 		return profileKeys.stream()
-				.map(key ->
-				{
-					Long accid = getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_ACCOUNT_HASH, long.class);
-					RuneScapeProfile prof = new RuneScapeProfile(
-							getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_DISPLAY_NAME),
-							getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_TYPE, RuneScapeProfileType.class),
-							getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_LOGIN_HASH, byte[].class),
-							accid == null ? RuneScapeProfile.ACCOUNT_HASH_INVALID : accid,
-							key
-					);
+			.map(key ->
+			{
+				Long accid = getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_ACCOUNT_HASH, long.class);
+				RuneScapeProfile prof = new RuneScapeProfile(
+					getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_DISPLAY_NAME),
+					getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_TYPE, RuneScapeProfileType.class),
+					getConfiguration(RSPROFILE_GROUP, key, RSPROFILE_LOGIN_HASH, byte[].class),
+					accid == null ? RuneScapeProfile.ACCOUNT_HASH_INVALID : accid,
+					key
+				);
 
-					return prof;
-				})
-				.collect(Collectors.toList());
+				return prof;
+			})
+			.collect(Collectors.toList());
 	}
 
 	private synchronized RuneScapeProfile findRSProfile(List<RuneScapeProfile> profiles, RuneScapeProfileType type, String displayName, boolean create)

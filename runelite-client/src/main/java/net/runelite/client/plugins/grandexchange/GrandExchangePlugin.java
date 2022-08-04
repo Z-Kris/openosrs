@@ -29,22 +29,16 @@
 package net.runelite.client.plugins.grandexchange;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.hash.Hasher;
-import com.google.common.hash.Hashing;
 import com.google.common.primitives.Shorts;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
-import java.net.NetworkInterface;
-import java.net.SocketException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.ToIntFunction;
@@ -79,14 +73,10 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetID;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.Notifier;
-import net.runelite.client.account.AccountSession;
-import net.runelite.client.account.SessionManager;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
-import net.runelite.client.events.SessionClose;
-import net.runelite.client.events.SessionOpen;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.input.KeyManager;
 import net.runelite.client.input.MouseManager;
@@ -97,12 +87,9 @@ import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ColorUtil;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
-import net.runelite.client.util.OSType;
 import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.util.Text;
-import net.runelite.http.api.ge.GrandExchangeTrade;
 import net.runelite.http.api.item.ItemStats;
-import net.runelite.http.api.worlds.WorldType;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.commons.text.similarity.FuzzyScore;
 
@@ -116,7 +103,6 @@ public class GrandExchangePlugin extends Plugin
 {
 	@VisibleForTesting
 	static final int GE_SLOTS = 8;
-	private static final int GE_LOGIN_BURST_WINDOW = 2; // ticks
 	private static final int GE_MAX_EXAMINE_LEN = 100;
 
 	private static final String BUY_LIMIT_GE_TEXT = "Buy limit: ";
@@ -167,9 +153,6 @@ public class GrandExchangePlugin extends Plugin
 	private Notifier notifier;
 
 	@Inject
-	private SessionManager sessionManager;
-
-	@Inject
 	private ConfigManager configManager;
 
 	@Inject
@@ -178,15 +161,12 @@ public class GrandExchangePlugin extends Plugin
 	@Inject
 	private RuneLiteConfig runeLiteConfig;
 
-	@Inject
-	private GrandExchangeClient grandExchangeClient;
 	private int lastLoginTick;
 
 	private boolean wasFuzzySearch;
 
 	private String machineUuid;
 	private long lastAccount;
-	private int tradeSeq;
 
 	/**
 	 * Logic from {@link org.apache.commons.text.similarity.FuzzyScore}
@@ -231,16 +211,6 @@ public class GrandExchangePlugin extends Plugin
 		return indices;
 	}
 
-	private SavedOffer getOffer(int slot)
-	{
-		String offer = configManager.getRSProfileConfiguration("geoffer", Integer.toString(slot));
-		if (offer == null)
-		{
-			return null;
-		}
-		return gson.fromJson(offer, SavedOffer.class);
-	}
-
 	private void setOffer(int slot, SavedOffer offer)
 	{
 		configManager.setRSProfileConfiguration("geoffer", Integer.toString(slot), gson.toJson(offer));
@@ -279,16 +249,6 @@ public class GrandExchangePlugin extends Plugin
 			keyManager.registerKeyListener(inputListener);
 		}
 
-		AccountSession accountSession = sessionManager.getAccountSession();
-		if (accountSession != null)
-		{
-			grandExchangeClient.setUuid(accountSession.getUuid());
-		}
-		else
-		{
-			grandExchangeClient.setUuid(null);
-		}
-
 		lastLoginTick = -1;
 	}
 
@@ -300,20 +260,6 @@ public class GrandExchangePlugin extends Plugin
 		keyManager.unregisterKeyListener(inputListener);
 		machineUuid = null;
 		lastAccount = -1L;
-		tradeSeq = 0;
-	}
-
-	@Subscribe
-	public void onSessionOpen(SessionOpen sessionOpen)
-	{
-		AccountSession accountSession = sessionManager.getAccountSession();
-		grandExchangeClient.setUuid(accountSession.getUuid());
-	}
-
-	@Subscribe
-	public void onSessionClose(SessionClose sessionClose)
-	{
-		grandExchangeClient.setUuid(null);
 	}
 
 	@Subscribe
@@ -360,116 +306,7 @@ public class GrandExchangePlugin extends Plugin
 
 		updateLimitTimer(offer);
 
-		submitTrade(slot, offer);
-
 		updateConfig(slot, offer);
-	}
-
-	@VisibleForTesting
-	void submitTrade(int slot, GrandExchangeOffer offer)
-	{
-		GrandExchangeOfferState state = offer.getState();
-
-		if (state != GrandExchangeOfferState.CANCELLED_BUY && state != GrandExchangeOfferState.CANCELLED_SELL && state != GrandExchangeOfferState.BUYING && state != GrandExchangeOfferState.SELLING)
-		{
-			return;
-		}
-
-		SavedOffer savedOffer = getOffer(slot);
-		boolean login = client.getTickCount() <= lastLoginTick + GE_LOGIN_BURST_WINDOW;
-		if (savedOffer == null && (state == GrandExchangeOfferState.BUYING || state == GrandExchangeOfferState.SELLING) && offer.getQuantitySold() == 0)
-		{
-			// new offer
-			GrandExchangeTrade grandExchangeTrade = new GrandExchangeTrade();
-			grandExchangeTrade.setBuy(state == GrandExchangeOfferState.BUYING);
-			grandExchangeTrade.setItemId(offer.getItemId());
-			grandExchangeTrade.setTotal(offer.getTotalQuantity());
-			grandExchangeTrade.setOffer(offer.getPrice());
-			grandExchangeTrade.setSlot(slot);
-			grandExchangeTrade.setWorldType(getGeWorldType());
-			grandExchangeTrade.setLogin(login);
-			grandExchangeTrade.setSeq(tradeSeq++);
-			grandExchangeTrade.setResetTime(getLimitResetTime(offer.getItemId()));
-
-			log.debug("Submitting new trade: {}", grandExchangeTrade);
-			grandExchangeClient.submit(grandExchangeTrade);
-			return;
-		}
-
-		if (savedOffer == null || savedOffer.getItemId() != offer.getItemId() || savedOffer.getPrice() != offer.getPrice() || savedOffer.getTotalQuantity() != offer.getTotalQuantity())
-		{
-			// desync
-			return;
-		}
-
-		if (savedOffer.getState() == offer.getState() && savedOffer.getQuantitySold() == offer.getQuantitySold())
-		{
-			// no change
-			return;
-		}
-
-		if (state == GrandExchangeOfferState.CANCELLED_BUY || state == GrandExchangeOfferState.CANCELLED_SELL)
-		{
-			GrandExchangeTrade grandExchangeTrade = new GrandExchangeTrade();
-			grandExchangeTrade.setBuy(state == GrandExchangeOfferState.CANCELLED_BUY);
-			grandExchangeTrade.setCancel(true);
-			grandExchangeTrade.setItemId(offer.getItemId());
-			grandExchangeTrade.setQty(offer.getQuantitySold());
-			grandExchangeTrade.setTotal(offer.getTotalQuantity());
-			grandExchangeTrade.setSpent(offer.getSpent());
-			grandExchangeTrade.setOffer(offer.getPrice());
-			grandExchangeTrade.setSlot(slot);
-			grandExchangeTrade.setWorldType(getGeWorldType());
-			grandExchangeTrade.setLogin(login);
-			grandExchangeTrade.setSeq(tradeSeq++);
-			grandExchangeTrade.setResetTime(getLimitResetTime(offer.getItemId()));
-
-			log.debug("Submitting cancelled: {}", grandExchangeTrade);
-			grandExchangeClient.submit(grandExchangeTrade);
-			return;
-		}
-
-		final int qty = offer.getQuantitySold() - savedOffer.getQuantitySold();
-		final int dspent = offer.getSpent() - savedOffer.getSpent();
-		if (qty <= 0 || dspent <= 0)
-		{
-			return;
-		}
-
-		GrandExchangeTrade grandExchangeTrade = new GrandExchangeTrade();
-		grandExchangeTrade.setBuy(state == GrandExchangeOfferState.BUYING);
-		grandExchangeTrade.setItemId(offer.getItemId());
-		grandExchangeTrade.setQty(offer.getQuantitySold());
-		grandExchangeTrade.setDqty(qty);
-		grandExchangeTrade.setTotal(offer.getTotalQuantity());
-		grandExchangeTrade.setDspent(dspent);
-		grandExchangeTrade.setSpent(offer.getSpent());
-		grandExchangeTrade.setOffer(offer.getPrice());
-		grandExchangeTrade.setSlot(slot);
-		grandExchangeTrade.setWorldType(getGeWorldType());
-		grandExchangeTrade.setLogin(login);
-		grandExchangeTrade.setSeq(tradeSeq++);
-		grandExchangeTrade.setResetTime(getLimitResetTime(offer.getItemId()));
-
-		log.debug("Submitting trade: {}", grandExchangeTrade);
-		grandExchangeClient.submit(grandExchangeTrade);
-	}
-
-	private WorldType getGeWorldType()
-	{
-		EnumSet<net.runelite.api.WorldType> worldTypes = client.getWorldType();
-		if (worldTypes.contains(net.runelite.api.WorldType.SEASONAL))
-		{
-			return WorldType.SEASONAL;
-		}
-		else if (worldTypes.contains(net.runelite.api.WorldType.DEADMAN))
-		{
-			return WorldType.DEADMAN;
-		}
-		else
-		{
-			return null;
-		}
 	}
 
 	private void updateConfig(int slot, GrandExchangeOffer offer)
@@ -519,9 +356,6 @@ public class GrandExchangePlugin extends Plugin
 			case HOPPING:
 			case CONNECTION_LOST:
 				lastLoginTick = client.getTickCount();
-				break;
-			case LOGGED_IN:
-				grandExchangeClient.setMachineId(getMachineUuid());
 				break;
 		}
 	}
@@ -583,7 +417,7 @@ public class GrandExchangePlugin extends Plugin
 		{
 			return;
 		}
-		String input = client.getVar(VarClientStr.INPUT_TEXT);
+		String input = client.getVarcStrValue(VarClientStr.INPUT_TEXT);
 
 		String underlineTag = "<u=" + ColorUtil.colorToHexCode(FUZZY_HIGHLIGHT_COLOR) + ">";
 
@@ -635,7 +469,7 @@ public class GrandExchangePlugin extends Plugin
 		wasFuzzySearch = false;
 
 		GrandExchangeSearchMode searchMode = config.geSearchMode();
-		final String input = client.getVar(VarClientStr.INPUT_TEXT);
+		final String input = client.getVarcStrValue(VarClientStr.INPUT_TEXT);
 		if (searchMode == GrandExchangeSearchMode.DEFAULT || input.isEmpty() || event.isConsumed())
 		{
 			return;
@@ -890,50 +724,5 @@ public class GrandExchangePlugin extends Plugin
 				+ "/viewitem?obj="
 				+ itemId;
 		LinkBrowser.browse(url);
-	}
-
-	private String getMachineUuid()
-	{
-		long accountHash = client.getAccountHash();
-		if (lastAccount == accountHash)
-		{
-			return machineUuid;
-		}
-
-		lastAccount = accountHash;
-
-		try
-		{
-			Hasher hasher = Hashing.sha256().newHasher();
-			Runtime runtime = Runtime.getRuntime();
-
-			hasher.putByte((byte) OSType.getOSType().ordinal());
-			hasher.putByte((byte) runtime.availableProcessors());
-			hasher.putUnencodedChars(System.getProperty("os.arch", ""));
-			hasher.putUnencodedChars(System.getProperty("os.version", ""));
-			hasher.putUnencodedChars(System.getProperty("user.name", ""));
-
-			Enumeration<NetworkInterface> networkInterfaces = NetworkInterface.getNetworkInterfaces();
-			while (networkInterfaces.hasMoreElements())
-			{
-				NetworkInterface networkInterface = networkInterfaces.nextElement();
-				byte[] hardwareAddress = networkInterface.getHardwareAddress();
-				if (hardwareAddress != null)
-				{
-					hasher.putBytes(hardwareAddress);
-				}
-			}
-			hasher.putLong(accountHash);
-			machineUuid = hasher.hash().toString();
-			tradeSeq = 0;
-			return machineUuid;
-		}
-		catch (SocketException ex)
-		{
-			log.debug("unable to generate machine id", ex);
-			machineUuid = null;
-			tradeSeq = 0;
-			return null;
-		}
 	}
 }

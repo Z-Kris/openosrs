@@ -26,7 +26,7 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
-    id("com.github.hauner.jarTest") version "1.0.1"
+    `java-test-fixtures`
 }
 
 description = "Cache"
@@ -51,12 +51,18 @@ dependencies {
 
     testCompileOnly(group = "org.projectlombok", name = "lombok", version = ProjectVersions.lombokVersion)
 
-    testImplementation(group = "junit", name = "junit", version = "4.13.1")
-    testImplementation(group = "net.runelite.rs", name = "cache", version = "${ProjectVersions.cacheversion}")
+    testFixturesAnnotationProcessor(group = "org.projectlombok", name = "lombok", version = ProjectVersions.lombokVersion)
+
+    testFixturesCompileOnly(group = "org.projectlombok", name = "lombok", version = ProjectVersions.lombokVersion)
+
+    testFixturesApi(group = "junit", name = "junit", version = "4.13.1")
+    testFixturesApi(group = "org.slf4j", name = "slf4j-simple", version = "1.7.32")
+
+    testFixturesImplementation(group = "com.google.guava", name = "guava", version = "30.1.1-jre")
 }
 
 tasks {
-    processTestResources {
+    processTestFixturesResources {
         val tokens = mapOf(
                 "rs.version" to ProjectVersions.rsversion.toString(),
                 "cache.version" to ProjectVersions.cacheversion.toString()

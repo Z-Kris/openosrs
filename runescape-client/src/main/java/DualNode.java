@@ -1,35 +1,32 @@
-import net.runelite.mapping.Export;
-import net.runelite.mapping.Implements;
 import net.runelite.mapping.ObfuscatedName;
 import net.runelite.mapping.ObfuscatedSignature;
-
-@ObfuscatedName("oo")
+import net.runelite.mapping.Implements;
+import net.runelite.mapping.Export;
+@ObfuscatedName("ob")
 @Implements("DualNode")
 public class DualNode extends Node {
-	@ObfuscatedName("dv")
+	@ObfuscatedName("dm")
 	@Export("keyDual")
 	public long keyDual;
-	@ObfuscatedName("dy")
-	@ObfuscatedSignature(
-		descriptor = "Loo;"
-	)
+
+	@ObfuscatedName("da")
+	@ObfuscatedSignature(descriptor = "Lob;")
 	@Export("previousDual")
 	public DualNode previousDual;
-	@ObfuscatedName("ds")
-	@ObfuscatedSignature(
-		descriptor = "Loo;"
-	)
+
+	@ObfuscatedName("dr")
+	@ObfuscatedSignature(descriptor = "Lob;")
 	@Export("nextDual")
 	public DualNode nextDual;
 
-	@ObfuscatedName("dc")
+	@ObfuscatedName("dk")
 	@Export("removeDual")
 	public void removeDual() {
-		if (this.nextDual != null) { // L: 9
-			this.nextDual.previousDual = this.previousDual; // L: 10
-			this.previousDual.nextDual = this.nextDual; // L: 11
-			this.previousDual = null; // L: 12
-			this.nextDual = null; // L: 13
+		if (this.nextDual != null) {
+			this.nextDual.previousDual = this.previousDual;
+			this.previousDual.nextDual = this.nextDual;
+			this.previousDual = null;
+			this.nextDual = null;
 		}
-	} // L: 14
+	}
 }

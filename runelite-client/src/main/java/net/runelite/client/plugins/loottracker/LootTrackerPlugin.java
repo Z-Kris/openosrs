@@ -38,32 +38,23 @@ import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 import com.google.inject.Provides;
 import java.awt.image.BufferedImage;
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import javax.inject.Inject;
-import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
-import lombok.AccessLevel;
-import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
@@ -80,17 +71,13 @@ import net.runelite.api.ObjectID;
 import net.runelite.api.Player;
 import net.runelite.api.Skill;
 import net.runelite.api.SpriteID;
-import net.runelite.api.WorldType;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
-import net.runelite.api.events.CommandExecuted;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.widgets.WidgetID;
-import net.runelite.client.account.AccountSession;
-import net.runelite.client.account.SessionManager;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.chat.ChatColorType;
 import net.runelite.client.chat.ChatMessageBuilder;
@@ -99,28 +86,21 @@ import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
-import net.runelite.client.events.ClientShutdown;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.events.PlayerLootReceived;
 import net.runelite.client.events.RuneScapeProfileChanged;
-import net.runelite.client.events.SessionClose;
-import net.runelite.client.events.SessionOpen;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.ItemStack;
 import net.runelite.client.game.LootManager;
 import net.runelite.client.game.SpriteManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
-import net.runelite.client.task.Schedule;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.QuantityFormatter;
 import net.runelite.client.util.Text;
-import net.runelite.http.api.loottracker.GameItem;
-import net.runelite.http.api.loottracker.LootAggregate;
-import net.runelite.http.api.loottracker.LootRecord;
 import net.runelite.http.api.loottracker.LootRecordType;
 import org.apache.commons.text.WordUtils;
 
@@ -310,9 +290,6 @@ public class LootTrackerPlugin extends Plugin
 	private ClientThread clientThread;
 
 	@Inject
-	private SessionManager sessionManager;
-
-	@Inject
 	private ScheduledExecutorService executor;
 
 	@Inject
@@ -330,10 +307,6 @@ public class LootTrackerPlugin extends Plugin
 	@Inject
 	private Gson gson;
 
-	@Getter(AccessLevel.PACKAGE)
-	@Inject
-	private LootTrackerClient lootTrackerClient;
-
 	private LootTrackerPanel panel;
 	private NavigationButton navButton;
 
@@ -347,9 +320,7 @@ public class LootTrackerPlugin extends Plugin
 	private Multiset<Integer> inventorySnapshot;
 	private InvChangeCallback inventorySnapshotCb;
 
-	private final List<LootRecord> queuedLoots = new ArrayList<>();
 	private String profileKey;
-	private Instant lastLootImport = Instant.now().minus(1, ChronoUnit.MINUTES);
 
 	private static Collection<ItemStack> stack(Collection<ItemStack> items)
 	{
@@ -387,27 +358,6 @@ public class LootTrackerPlugin extends Plugin
 	}
 
 	@Subscribe
-	public void onSessionOpen(SessionOpen sessionOpen)
-	{
-		AccountSession accountSession = sessionManager.getAccountSession();
-		if (accountSession.getUuid() != null)
-		{
-			lootTrackerClient.setUuid(accountSession.getUuid());
-		}
-		else
-		{
-			lootTrackerClient.setUuid(null);
-		}
-	}
-
-	@Subscribe
-	public void onSessionClose(SessionClose sessionClose)
-	{
-		submitLoot();
-		lootTrackerClient.setUuid(null);
-	}
-
-	@Subscribe
 	public void onRuneScapeProfileChanged(RuneScapeProfileChanged e)
 	{
 		final String profileKey = configManager.getRSProfileKey();
@@ -428,9 +378,6 @@ public class LootTrackerPlugin extends Plugin
 	{
 		executor.execute(() ->
 		{
-			// Current queued loot is for the previous profile, so save it first with the current profile key
-			submitLoot();
-
 			this.profileKey = profileKey;
 
 			log.debug("Switched to profile {}", profileKey);
@@ -548,12 +495,6 @@ public class LootTrackerPlugin extends Plugin
 
 		clientToolbar.addNavigation(navButton);
 
-		AccountSession accountSession = sessionManager.getAccountSession();
-		if (accountSession != null)
-		{
-			lootTrackerClient.setUuid(accountSession.getUuid());
-		}
-
 		String profileKey = configManager.getRSProfileKey();
 		if (profileKey != null)
 		{
@@ -564,20 +505,8 @@ public class LootTrackerPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
-		submitLoot();
 		clientToolbar.removeNavigation(navButton);
-		lootTrackerClient.setUuid(null);
 		chestLooted = false;
-	}
-
-	@Subscribe
-	public void onClientShutdown(ClientShutdown event)
-	{
-		Future<Void> future = submitLoot();
-		if (future != null)
-		{
-			event.waitFor(future);
-		}
 	}
 
 	@Subscribe
@@ -599,19 +528,7 @@ public class LootTrackerPlugin extends Plugin
 		final LootTrackerItem[] entries = buildEntries(stack(items));
 		SwingUtilities.invokeLater(() -> panel.add(name, type, combatLevel, entries, amount));
 
-		LootRecord lootRecord = new LootRecord(name, type, metadata, toGameItems(items), Instant.now(), getLootWorldId());
-		synchronized (queuedLoots)
-		{
-			queuedLoots.add(lootRecord);
-		}
-
 		eventBus.post(new LootReceived(name, combatLevel, type, items, amount));
-	}
-
-	private Integer getLootWorldId()
-	{
-		// For the wiki to determine drop rates based on dmm brackets / identify leagues drops
-		return client.getWorldType().contains(WorldType.SEASONAL) ? client.getWorld() : null;
 	}
 
 	@Subscribe
@@ -973,7 +890,7 @@ public class LootTrackerPlugin extends Plugin
 		}
 		else if (event.isItemOp())
 		{
-			if (event.getMenuOption().equals("Take") && event.getItemId() == ItemID.SEED_PACK)
+			if (event.getItemId() == ItemID.SEED_PACK && (event.getMenuOption().equals("Take") || event.getMenuOption().equals("Take-all")))
 			{
 				onInvChange(collectInvItems(LootRecordType.EVENT, SEEDPACK_EVENT));
 			}
@@ -1030,15 +947,6 @@ public class LootTrackerPlugin extends Plugin
 		}
 	}
 
-	@Subscribe
-	public void onCommandExecuted(CommandExecuted commandExecuted)
-	{
-		if (commandExecuted.getCommand().equals("importloot"))
-		{
-			SwingUtilities.invokeLater(this::importLoot);
-		}
-	}
-
 	private static boolean isNPCOp(MenuAction menuAction)
 	{
 		final int id = menuAction.getId();
@@ -1050,78 +958,6 @@ public class LootTrackerPlugin extends Plugin
 		final int id = menuAction.getId();
 		return (id >= MenuAction.GAME_OBJECT_FIRST_OPTION.getId() && id <= MenuAction.GAME_OBJECT_FOURTH_OPTION.getId())
 			|| id == MenuAction.GAME_OBJECT_FIFTH_OPTION.getId();
-	}
-
-	@Schedule(
-		period = 5,
-		unit = ChronoUnit.MINUTES,
-		asynchronous = true
-	)
-	public void submitLootTask()
-	{
-		submitLoot();
-	}
-
-	@Nullable
-	private CompletableFuture<Void> submitLoot()
-	{
-		List<LootRecord> copy;
-		synchronized (queuedLoots)
-		{
-			if (queuedLoots.isEmpty())
-			{
-				return null;
-			}
-
-			copy = new ArrayList<>(queuedLoots);
-			queuedLoots.clear();
-		}
-
-		saveLoot(copy);
-
-		log.debug("Submitting {} loot records", copy.size());
-
-		return lootTrackerClient.submit(copy);
-	}
-
-	private Collection<ConfigLoot> combine(List<LootRecord> records)
-	{
-		Map<ConfigLoot, ConfigLoot> map = new HashMap<>();
-		for (LootRecord record : records)
-		{
-			ConfigLoot key = new ConfigLoot(record.getType(), record.getEventId());
-			ConfigLoot loot = map.computeIfAbsent(key, k -> key);
-			loot.kills++;
-			for (GameItem item : record.getDrops())
-			{
-				loot.add(item.getId(), item.getQty());
-			}
-		}
-		return map.values();
-	}
-
-	private void saveLoot(List<LootRecord> records)
-	{
-		Instant now = Instant.now();
-		Collection<ConfigLoot> combinedRecords = combine(records);
-		for (ConfigLoot record : combinedRecords)
-		{
-			ConfigLoot lootConfig = getLootConfig(record.type, record.name);
-			if (lootConfig == null)
-			{
-				lootConfig = record;
-			}
-			else
-			{
-				lootConfig.kills += record.kills;
-				for (int i = 0; i < record.drops.length; i += 2)
-				{
-					lootConfig.add(record.drops[i], record.drops[i + 1]);
-				}
-			}
-			lootConfig.last = now;
-			setLootConfig(lootConfig.type, lootConfig.name, lootConfig);
-		}
 	}
 
 	private void resetEvent()
@@ -1279,28 +1115,6 @@ public class LootTrackerPlugin extends Plugin
 			.toArray(LootTrackerItem[]::new);
 	}
 
-	private static Collection<GameItem> toGameItems(Collection<ItemStack> items)
-	{
-		return items.stream()
-			.map(item -> new GameItem(item.getId(), item.getQuantity()))
-			.collect(Collectors.toList());
-	}
-
-	private Collection<LootTrackerRecord> convertToLootTrackerRecord(final Collection<LootAggregate> records)
-	{
-		return records.stream()
-			.sorted(Comparator.comparing(LootAggregate::getLast_time))
-			.map(record ->
-			{
-				LootTrackerItem[] drops = record.getDrops().stream().map(itemStack ->
-					buildLootTrackerItem(itemStack.getId(), itemStack.getQty())
-				).toArray(LootTrackerItem[]::new);
-
-				return new LootTrackerRecord(record.getEventId(), "", record.getType(), drops, record.getAmount());
-			})
-			.collect(Collectors.toCollection(ArrayList::new));
-	}
-
 	private LootTrackerRecord convertToLootTrackerRecord(final ConfigLoot configLoot)
 	{
 		LootTrackerItem[] items = new LootTrackerItem[configLoot.drops.length / 2];
@@ -1353,37 +1167,6 @@ public class LootTrackerPlugin extends Plugin
 				.build());
 	}
 
-	ConfigLoot getLootConfig(LootRecordType type, String name)
-	{
-		String profile = profileKey;
-		if (Strings.isNullOrEmpty(profile))
-		{
-			log.debug("Trying to get loot with no profile!");
-			return null;
-		}
-
-		String json = configManager.getConfiguration(LootTrackerConfig.GROUP, profile, "drops_" + type + "_" + name);
-		if (json == null)
-		{
-			return null;
-		}
-
-		return gson.fromJson(json, ConfigLoot.class);
-	}
-
-	void setLootConfig(LootRecordType type, String name, ConfigLoot loot)
-	{
-		String profile = profileKey;
-		if (Strings.isNullOrEmpty(profile))
-		{
-			log.debug("Trying to set loot with no profile!");
-			return;
-		}
-
-		String json = gson.toJson(loot);
-		configManager.setConfiguration(LootTrackerConfig.GROUP, profile, "drops_" + type + "_" + name, json);
-	}
-
 	void removeLootConfig(LootRecordType type, String name)
 	{
 		String profile = profileKey;
@@ -1409,113 +1192,5 @@ public class LootTrackerPlugin extends Plugin
 		{
 			configManager.unsetConfiguration(LootTrackerConfig.GROUP, profile, key);
 		}
-
-		clearImported();
-	}
-
-	void importLoot()
-	{
-		if (configManager.getRSProfileKey() == null)
-		{
-			JOptionPane.showMessageDialog(panel, "You do not have an active profile to import loot into; log in to the game first.");
-			return;
-		}
-
-		if (lootTrackerClient.getUuid() == null)
-		{
-			JOptionPane.showMessageDialog(panel, "You are not logged into RuneLite, so loot can not be imported from your account. Log in first.");
-			return;
-		}
-
-		if (lastLootImport.isAfter(Instant.now().minus(1, ChronoUnit.MINUTES)))
-		{
-			JOptionPane.showMessageDialog(panel, "You imported too recently. Wait a minute and try again.");
-			return;
-		}
-
-		lastLootImport = Instant.now();
-
-		executor.execute(() ->
-		{
-			if (hasImported())
-			{
-				SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(panel, "You already have imported loot."));
-				return;
-			}
-
-			Collection<LootAggregate> lootRecords;
-			try
-			{
-				lootRecords = lootTrackerClient.get();
-			}
-			catch (IOException e)
-			{
-				log.debug("Unable to look up loot", e);
-				return;
-			}
-
-			log.debug("Loaded {} data entries", lootRecords.size());
-
-			for (LootAggregate record : lootRecords)
-			{
-				ConfigLoot lootConfig = getLootConfig(record.getType(), record.getEventId());
-				if (lootConfig == null)
-				{
-					lootConfig = new ConfigLoot(record.getType(), record.getEventId());
-				}
-				lootConfig.first = record.getFirst_time();
-				lootConfig.last = record.getLast_time();
-				lootConfig.kills += record.getAmount();
-				for (GameItem gameItem : record.getDrops())
-				{
-					lootConfig.add(gameItem.getId(), gameItem.getQty());
-				}
-				setLootConfig(record.getType(), record.getEventId(), lootConfig);
-			}
-
-			clientThread.invokeLater(() ->
-			{
-				Collection<LootTrackerRecord> records = convertToLootTrackerRecord(lootRecords);
-				SwingUtilities.invokeLater(() -> panel.addRecords(records));
-			});
-
-			SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(panel, "Imported " + lootRecords.size() + " loot entries."));
-
-			setHasImported();
-		});
-	}
-
-	void setHasImported()
-	{
-		String profile = profileKey;
-		if (Strings.isNullOrEmpty(profile))
-		{
-			return;
-		}
-
-		configManager.setConfiguration(LootTrackerConfig.GROUP, profile, "imported", 1);
-	}
-
-	boolean hasImported()
-	{
-		String profile = profileKey;
-		if (Strings.isNullOrEmpty(profile))
-		{
-			return false;
-		}
-
-		Integer i = configManager.getConfiguration(LootTrackerConfig.GROUP, profile, "imported", Integer.class);
-		return i != null && i == 1;
-	}
-
-	void clearImported()
-	{
-		String profile = profileKey;
-		if (Strings.isNullOrEmpty(profile))
-		{
-			return;
-		}
-
-		configManager.unsetConfiguration(LootTrackerConfig.GROUP, profile, "imported");
 	}
 }

@@ -53,7 +53,6 @@ import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.widgets.WidgetID;
-import net.runelite.client.account.SessionManager;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
@@ -121,19 +120,11 @@ public class LootTrackerPluginTest
 
 	@Mock
 	@Bind
-	private SessionManager sessionManager;
-
-	@Mock
-	@Bind
 	private ItemManager itemManager;
 
 	@Mock
 	@Bind
 	private ChatMessageManager chatMessageManager;
-
-	@Mock
-	@Bind
-	private LootTrackerClient lootTrackerClient;
 
 	@Mock
 	@Bind
